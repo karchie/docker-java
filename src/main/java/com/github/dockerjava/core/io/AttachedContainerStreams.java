@@ -1,7 +1,6 @@
 package com.github.dockerjava.core.io;
 
 import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -23,13 +22,13 @@ import com.google.common.collect.Maps;
 /**
  * @author Kevin A. Archie <karchie@wustl.edu>
  */
-public class AttachedContainerStreams implements Closeable {
+public class AttachedContainerStreams extends InputStream {
     private static final String CRLF = "\r\n";
     private final Logger logger = LoggerFactory.getLogger(AttachedContainerStreams.class);
     private final Socket socket;
     private final DataInputStream mux;
     private final OutputStream stdin;
-    private final InputStream stdout, stderr;
+    private final InputStream stdout, stderr, delegate;
 
     /**
      * 
@@ -52,13 +51,14 @@ public class AttachedContainerStreams implements Closeable {
             socket.shutdownOutput();
         }
         if (isTty) {
-            stdout = socketIn;
-            stderr = null;
+            delegate = socketIn;
+            stdout = stderr = null;
         } else {
             stdout = attachStdout ? new DemuxedInputStream(Stream.STDOUT) : null;
             stderr = attachStderr ? new DemuxedInputStream(Stream.STDERR) : null;
+            delegate = null == stdout ? stderr : stdout;
         }
-        if (stdout == null && stderr == null) {
+        if (null == delegate) {
             socket.shutdownInput();
         }
     }
@@ -74,6 +74,111 @@ public class AttachedContainerStreams implements Closeable {
     public InputStream getStderr() {
         return stderr;
     }
+
+    /*
+     * (non-Javadoc)
+     * @see java.io.InputStream#available()
+     */
+    @Override
+    public int available() throws IOException {
+        if (null == delegate) {
+            throw new IOException("no open stream");
+        } else {
+            return delegate.available();
+        }
+    }
+
+    /* (non-Javadoc)
+     * @see java.io.Closeable#close()
+     */
+    @Override
+    public void close() throws IOException {
+        IOException lastIOE = null;
+        try {
+            final InputStream[] ins = {mux, stdout, stderr};
+            for (final InputStream is : ins) {
+                if (null != is) {
+                    try {
+                        is.close();
+                    } catch (IOException e) {
+                        lastIOE = e;
+                    }
+                }
+            }
+            if (null != stdin) {
+                try {
+                    stdin.close();
+                } catch (IOException e) {
+                    lastIOE = e;
+                }
+            }
+            if (null != lastIOE) {
+                throw lastIOE;
+            }
+        } finally {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                if (null != lastIOE) {
+                    logger.error("socket exception masking earlier exception", lastIOE);
+                }
+                throw e;
+            }
+        }
+    }
+
+    /*
+     * (non-Javadoc)
+     * @see java.io.InputStream#read()
+     */
+    @Override
+    public int read() throws IOException {
+        if (null == delegate) {
+            throw new IOException("no open stream");
+        } else {
+            return delegate.read();
+        }
+    }
+
+    /*
+     * (non-Javadoc)
+     * @see java.io.InputStream#read(byte[])
+     */
+    @Override
+    public int read(final byte[] b) throws IOException {
+        if (null == delegate) {
+            throw new IOException("no open stream");
+        } else {
+            return delegate.read(b);
+        }
+    }
+
+    /*
+     * (non-Javadoc)
+     * @see java.io.InputStream#read(byte[], int, int)
+     */
+    @Override
+    public int read(final byte[] b, final int off, final int len) throws IOException {
+        if (null == delegate) {
+            throw new IOException("no open stream");
+        } else {
+            return delegate.read(b, off, len);
+        }
+    }
+
+    /*
+     * (non-Javadoc)
+     * @see java.io.InputStream#skip(long)
+     */
+    @Override
+    public long skip(final long n) throws IOException {
+        if (null == delegate) {
+            throw new IOException("no open stream");
+        } else {
+            return delegate.skip(n);
+        }
+    }
+
 
     private void sendReqHeader(final OutputStream out, final String path, final String containerId,
             final boolean attachStdin, final boolean attachStdout, final boolean attachStderr)
@@ -128,36 +233,6 @@ public class AttachedContainerStreams implements Closeable {
         } finally {
             bytes.close();  // noop close prevents dumb compiler warnings
         }
-    }
-
-
-    /* (non-Javadoc)
-     * @see java.io.Closeable#close()
-     */
-    @Override
-    public void close() throws IOException {
-        IOException lastIOE = null;
-        final InputStream[] ins = {mux, stdout, stderr};
-        for (final InputStream is : ins) {
-            if (null != is) {
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    lastIOE = e;
-                }
-            }
-        }
-        if (null != stdin) {
-            try {
-                stdin.close();
-            } catch (IOException e) {
-                lastIOE = e;
-            }
-        }
-        if (null != lastIOE) {
-            throw lastIOE;
-        }
-
     }
 
     public static enum Stream {
@@ -220,7 +295,7 @@ public class AttachedContainerStreams implements Closeable {
         public void close() throws IOException {
             open = false;
             bufs.clear();
-            
+
             // if no demux readers are left we can half-close
             for (final DemuxedInputStream s : streams.values()) {
                 if (s.open) {
