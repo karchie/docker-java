@@ -1,8 +1,7 @@
 package com.github.dockerjava.api.command;
 
-import java.io.InputStream;
-
 import com.github.dockerjava.api.NotFoundException;
+import com.github.dockerjava.core.io.AttachedContainerStreams;
 
 /**
  * Attach to container
@@ -20,7 +19,7 @@ import com.github.dockerjava.api.NotFoundException;
  *            - true or false, if true, print timestamps for every log line.
  *            Defaults to false.
  */
-public interface AttachContainerCmd extends DockerCmd<InputStream>{
+public interface AttachContainerCmd extends DockerCmd<AttachedContainerStreams>{
 
 	public String getContainerId();
 
@@ -29,10 +28,14 @@ public interface AttachContainerCmd extends DockerCmd<InputStream>{
 	public boolean hasFollowStreamEnabled();
 
 	public boolean hasTimestampsEnabled();
+	
+	public boolean hasStdinEnabled();
 
 	public boolean hasStdoutEnabled();
 
 	public boolean hasStderrEnabled();
+	
+	public boolean isTty();
 
 	public AttachContainerCmd withContainerId(String containerId);
 
@@ -41,6 +44,10 @@ public interface AttachContainerCmd extends DockerCmd<InputStream>{
 	public AttachContainerCmd withFollowStream(boolean followStream);
 
 	public AttachContainerCmd withTimestamps(boolean timestamps);
+	
+	public AttachContainerCmd withStdIn();
+	
+	public AttachContainerCmd withStdIn(boolean stdin);
 
 	public AttachContainerCmd withStdOut();
 
@@ -51,14 +58,18 @@ public interface AttachContainerCmd extends DockerCmd<InputStream>{
 	public AttachContainerCmd withStdErr(boolean stderr);
 
 	public AttachContainerCmd withLogs(boolean logs);
+	
+	public AttachContainerCmd withTty();
+	
+	public AttachContainerCmd withTty(boolean tty);
 
 	/**
 	 * @throws NotFoundException No such container 
 	 */
 	@Override
-	public InputStream exec() throws NotFoundException;
+	public AttachedContainerStreams exec() throws NotFoundException;
 	
-	public static interface Exec extends DockerCmdExec<AttachContainerCmd, InputStream> {
+	public static interface Exec extends DockerCmdExec<AttachContainerCmd,AttachedContainerStreams> {
 	}
 
 }

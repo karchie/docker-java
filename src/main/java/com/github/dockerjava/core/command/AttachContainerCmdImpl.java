@@ -1,10 +1,8 @@
 package com.github.dockerjava.core.command;
 
-import java.io.InputStream;
-
 import com.github.dockerjava.api.NotFoundException;
 import com.github.dockerjava.api.command.AttachContainerCmd;
-
+import com.github.dockerjava.core.io.AttachedContainerStreams;
 import com.google.common.base.Preconditions;
 
 /**
@@ -23,11 +21,11 @@ import com.google.common.base.Preconditions;
  *            - true or false, if true, print timestamps for every log line.
  *            Defaults to false.
  */
-public class AttachContainerCmdImpl extends	AbstrDockerCmd<AttachContainerCmd, InputStream> implements AttachContainerCmd {
+public class AttachContainerCmdImpl extends	AbstrDockerCmd<AttachContainerCmd,AttachedContainerStreams> implements AttachContainerCmd {
 
 	private String containerId;
 
-	private boolean logs, followStream, timestamps, stdout, stderr;
+	private boolean logs, followStream, timestamps, stdin, stdout, stderr, isTty;
 
 	public AttachContainerCmdImpl(AttachContainerCmd.Exec exec, String containerId) {
 		super(exec);
@@ -53,6 +51,11 @@ public class AttachContainerCmdImpl extends	AbstrDockerCmd<AttachContainerCmd, I
 	public boolean hasTimestampsEnabled() {
 		return timestamps;
 	}
+	
+	@Override
+	public boolean hasStdinEnabled() {
+	    return stdin;
+	}
 
 	@Override
 	public boolean hasStdoutEnabled() {
@@ -62,6 +65,10 @@ public class AttachContainerCmdImpl extends	AbstrDockerCmd<AttachContainerCmd, I
 	@Override
 	public boolean hasStderrEnabled() {
 		return stderr;
+	}
+	
+	public boolean isTty() {
+	    return isTty;
 	}
 
 	@Override
@@ -88,6 +95,17 @@ public class AttachContainerCmdImpl extends	AbstrDockerCmd<AttachContainerCmd, I
 		return this;
 	}
 
+	@Override
+	public AttachContainerCmd withStdIn() {
+	    return withStdIn(true);
+	}
+	
+	@Override
+	public AttachContainerCmd withStdIn(boolean stdin) {
+	    this.stdin = stdin;
+	    return this;
+	}
+	
 	@Override
 	public AttachContainerCmd withStdOut() {
 		return withStdOut(true);
@@ -116,11 +134,20 @@ public class AttachContainerCmdImpl extends	AbstrDockerCmd<AttachContainerCmd, I
 		return this;
 	}
 	
+	public AttachContainerCmd withTty() {
+	    return withTty(true);
+	}
+	
+	public AttachContainerCmd withTty(boolean isTty) {
+	    this.isTty = isTty;
+	    return this;
+	}
+	
 	/**
 	 * @throws NotFoundException No such container 
 	 */
 	@Override
-	public InputStream exec() throws NotFoundException {
+	public AttachedContainerStreams exec() throws NotFoundException {
 		return super.exec();
 	}
 }
