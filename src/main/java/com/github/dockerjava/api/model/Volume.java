@@ -32,8 +32,13 @@ public class Volume {
 	
 	private boolean readWrite = true;
 
-	public Volume(String path) {
+	public Volume(final String path, final boolean readWrite) {
 		this.path = path;
+		this.readWrite = readWrite;
+	}
+	
+	public Volume(final String path) {
+	    this(path, true);
 	}
 
 	public String getPath() {
@@ -105,7 +110,4 @@ public class Volume {
 			}
 		}
 	}
-
-	
-
 }
