@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 
+import javax.management.openmbean.OpenDataException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -178,6 +180,10 @@ public class AttachedContainerStreams extends InputStream {
             return delegate.skip(n);
         }
     }
+    
+    public void shutdownOutput() throws IOException {
+        socket.shutdownOutput();
+    }
 
 
     private void sendReqHeader(final OutputStream out, final String path, final String containerId,
@@ -259,7 +265,12 @@ public class AttachedContainerStreams extends InputStream {
             logger.trace("frame size {} bytes ({})", remaining, Long.toHexString(remaining));
             final long chunk = Math.min(remaining, (long)Integer.MAX_VALUE);
             final byte[] data = new byte[(int)chunk];
-            mux.readFully(data);
+            try {
+                mux.readFully(data);
+            } catch (EOFException e) {
+                logger.error("incomplete frame", e);
+                throw new IOException("EOF reached in middle of frame", e);
+            }
             remaining -= chunk;
             stream.bufs.add(data);
         }
@@ -302,14 +313,19 @@ public class AttachedContainerStreams extends InputStream {
                     return;
                 }
             }
-            socket.shutdownInput();
+            try {
+                socket.shutdownInput();
+            } catch (SocketException e) { 
+                // probably just already input-half-closed; log in case not
+                logger.debug("unable to (re?)half-close socket", e);
+            }
         }
 
         @Override
         public int read() throws IOException {
             logger.trace("reading {}", stream);
             if (!open) {
-                throw new IOException("channel is closed");
+                return -1;
             }
             while (bufs.isEmpty()) {
                 try {
@@ -317,7 +333,7 @@ public class AttachedContainerStreams extends InputStream {
                 } catch (EOFException e) {
                     if (bufs.isEmpty()) {
                         open = false;
-                        throw e;
+                        return -1;
                     }
                 } catch (SocketException e) {
                     if (socket.isClosed() || socket.isInputShutdown()) {
