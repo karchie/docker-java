@@ -13,8 +13,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 
-import javax.management.openmbean.OpenDataException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
